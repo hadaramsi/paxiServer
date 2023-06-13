@@ -1,35 +1,19 @@
+import heapq
+
 import flask
 from datetime import date, datetime
 import firebase_admin
 # from firebase_admin import db
 from firebase_admin import firestore
 from flask import request, Response
+from jinja2.nodes import Node
+
 app = flask.Flask(__name__)
 
 
-@app.route('/')
-def extract_name():
-    res = "Paxi server is up"
-    cred_obj = firebase_admin.credentials.Certificate(r"C:\Users\Hadar\Desktop\paxi\paxi-2926b-firebase-adminsdk-yqehw-fe79636c2c.json")
-    firebase_admin.initialize_app(cred_obj, {'databaseURL':"https://console.firebase.google.com/u/0/project/paxi-2926b/database"})
-    db = firestore.client()
-    doc_ref = db.collection('routes').document('NJXWjum9WchLU3N58zad')
-    doc = doc_ref.get()
-    if doc.exists:
-        print(f'Document data: {doc.to_dict()}')
-    else:
-        print('No such document!')
-    # print(ref.get())
-    return {"message": res}
-
-# this commands the script to run in the given port
-
-
-if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5000, debug=True)
-
-
 def buildGraph():
+    print("in build graph")
+    currentDate = date.today()
     cred_obj = firebase_admin.credentials.Certificate(
         r"C:\Users\Hadar\Desktop\paxi\paxi-2926b-firebase-adminsdk-yqehw-fe79636c2c.json")
     firebase_admin.initialize_app(cred_obj, {
@@ -38,6 +22,10 @@ def buildGraph():
     docsPacks = db.collection('packages').get()
     for doc in docsPacks:
         graph = {}
+        docsDps = db.collection('deliveryPoints').get()
+        for dp in docsDps:
+            graph[dp.get('deliveryPointName')] = {}
+            # graph.update({dp.get('deliveryPointName') : {}})
         s = doc.get('source')
         d = doc.get('destination')
         dDate = doc.get('date')
@@ -45,16 +33,44 @@ def buildGraph():
         w = doc.get('weight')
         v = doc.get('volume')
         docsRoutes = db.collection('routes').get()
-        for i in docsRoutes:
-            if w <= i.get('weight') and v <= i.get('volume'):
-                if datetime.strptime(i.get('date'), '%m/%d/%y %H:%M:%S') <= datetime.strptime(dDate, '%m/%d/%y %H:%M:%S'):
-                    if cost >= i.get('cost'):
-                        graph.update({i.get('futureRouteID'): i.get('cost')})
-    PackMatch(graph, s, d, dDate, cost)
+        for r in docsRoutes:
+            if w <= r.get('weight') and v <= r.get('volume') and datetime.strptime(r.get('date'), '%d/%m/%Y').date() > currentDate:
+                if datetime.strptime(r.get('date'), '%d/%m/%Y').date() <= datetime.strptime(dDate, '%d/%m/%Y').date():
+                    if cost >= r.get('cost'):
+                        graph[r.get('source')][r.get('destination')] = {'futureRouteID': r.get('futureRouteID'),
+                                                                        'date': r.get('date'),
+                                                                        'cost': r.get('cost')}
+                        # graph.update({r.get('source'): r.get('destination')} {r.get('futureRouteID'): r.get('cost')}})
+        print(graph)
+        nodes = PackMatch(graph, s, d, cost)
+        print(nodes)
 
 
-def PackMatch(Graph, source, destination, dDate, cost):
-    currentDate = date.today()
+def PackMatch(graph, source, destination, cost):
+  nodes = {}
+  c = 0
+  for node in graph:
+      nodes[node] = Node()
+  nodes[source].d = 0
+  queue = [(0, source)] #priority queue
+  while queue:
+      d, node = heapq.heappop(queue)
+      if nodes[node].finished:
+          continue
+      nodes[node].finished = True
+      for neighbor in graph[node]:
+          if nodes[neighbor].finished:
+              continue
+          new_d = d+graph[node][neighbor]
+          if new_d < nodes[neighbor].d:
+              nodes[neighbor].d = new_d
+              nodes[neighbor].parent = node
+              heapq.heappush(queue, (new_d, neighbor))
+  return nodes
+
+
+# def PackMatch(Graph, source, destination, dDate, cost):
+#     currentDate = date.today()
 #     create vertex set Q
 #
 # # Initialization
@@ -82,5 +98,17 @@ def PackMatch(Graph, source, destination, dDate, cost):
 #         return null
 #
 #     return dist[], prev[]
+
+@app.route('/')
+def extract_name():
+    res = "Paxi server is up"
+    buildGraph()
+    return {"message": res}
+
+# this commands the script to run in the given port
+
+
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=5000, debug=True)
 
 
