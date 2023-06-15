@@ -25,7 +25,6 @@ def buildGraph():
         docsDps = db.collection('deliveryPoints').get()
         for dp in docsDps:
             graph[dp.get('deliveryPointName')] = {}
-            # graph.update({dp.get('deliveryPointName') : {}})
         s = doc.get('source')
         d = doc.get('destination')
         dDate = doc.get('date')
@@ -40,14 +39,75 @@ def buildGraph():
                         graph[r.get('source')][r.get('destination')] = {'futureRouteID': r.get('futureRouteID'),
                                                                         'date': r.get('date'),
                                                                         'cost': r.get('cost')}
-                        # graph.update({r.get('source'): r.get('destination')} {r.get('futureRouteID'): r.get('cost')}})
-        # print(graph)
-        nodes= dijkstra(graph, s)
-        # nodes = PackMatch(graph, s, d, cost)
-        if nodes[d][0]!= float('inf'):
-            pass
-        print( " this is what we wont to seeeeee")
-        print(nodes)
+            print(graph)
+        distances = dijkstra(graph, s)
+        print("distances is: \n")
+
+        print(distances)
+        if distances[d][0] != float('inf') and distances[d][0] <= cost:
+            routes = checkMatch(distances, graph, s,  d)
+            print("route is: \n")
+            print(routes)
+        #     if routes is not []:
+        #         doc['match'] = True
+        #         doc_driv = db.collection('drivers').document(r['driver'])
+        #         doc['rate'] = doc_driv['rate']
+        #         doc['driver'] = doc_driv['fullName']
+        #         for i in routes:
+        #             doc_ref = db.collection('routes').document(routes[i])
+        #             doc_ref['match'] = True
+        #             doc_ref['packagesList'] += doc['packageID']
+        #             doc_ref['volume'] -= v
+        #             doc_ref['weight'] -= w
+        #         print("Match !!!!!")
+
+
+def checkMatch(distances, graph, s, d):
+    routes = []
+    tempDate = graph[distances[d][1]][d]
+    current_vertex = distances[d][1]
+    before = d
+    while current_vertex is not None:
+        if current_vertex == s:
+            routes.append(graph[current_vertex][before]['futureRouteID'])
+            return routes
+        before = distances[current_vertex][1]
+        temp = graph[before][current_vertex]
+        if datetime.strptime(temp['date'], '%d/%m/%Y').date() < datetime.strptime(tempDate['date'], '%d/%m/%Y').date():
+            routes.insert(tempDate['futureRouteID'])
+            tempDate = graph[before][current_vertex]['date']
+            current_vertex = before
+        else:
+            return []
+    return routes
+
+
+# def checkMatch(distances, graph, s, d):
+#     print("graph" + str(graph))
+#     routes = []
+#     tempDate = graph[distances[d][1]][d]
+#     print("tempDate" + str(tempDate))
+#     current_vertex = distances[d][1]
+#     print("distances[d] "+ str(distances[d]))
+#     print("distances"+ str(distances))
+#     before = d
+#     while current_vertex is not None:
+#         if current_vertex == s:
+#             routes.append(graph[current_vertex][before]['futureRouteID'])
+#             print("routes: " + str(routes))
+#             return routes
+#         before = distances[current_vertex][1]
+#         # print("graph" + graph)
+#         print("before" + str(before))
+#         print("vertex" + str(current_vertex))
+#         temp = graph[before][current_vertex]
+#         if datetime.strptime(temp['date'], '%d/%m/%Y').date() < datetime.strptime(tempDate['date'], '%d/%m/%Y').date():
+#             routes.insert(tempDate['futureRouteID'])
+#             tempDate = graph[before][current_vertex]['date']
+#             current_vertex = before
+#         else:
+#             return []
+#     return routes
 
 
 def dijkstra(graph, start):
@@ -55,80 +115,21 @@ def dijkstra(graph, start):
     for vertex in graph:
         distances[vertex] = [float('inf'), None]
     distances[start][0] = 0
-
     priority_queue = [(0, start)]
     heapq.heapify(priority_queue)
     while priority_queue:
         current_distance, current_vertex = heapq.heappop(priority_queue)
-
-        # Ignore outdated entries in the priority queue
-        # print("1111111" + str(distances))
         if current_distance > distances[current_vertex][0]:
             continue
 
         for neighbor, weight in graph[current_vertex].items():
             distance = current_distance + weight['cost']
-            # print(neighbor)
-            # print("weight['cost']-----" + str(weight['cost']))
             if distance < distances[neighbor][0]:
                 distances[neighbor][0] = distance
                 distances[neighbor][1]=current_vertex
                 heapq.heappush(priority_queue, (distance, neighbor))
     return distances
 
-
-# def PackMatch(graph, source, destination, cost):
-#   nodes = {}
-#   c = 0
-#   for node in graph:
-#       nodes[node] = Node()
-#   nodes[source].d = 0
-#   queue = [(0, source)] #priority queue
-#   while queue:
-#       d, node = heapq.heappop(queue)
-#       if nodes[node].finished:
-#           continue
-#       nodes[node].finished = True
-#       for neighbor in graph[node]:
-#           if nodes[neighbor].finished:
-#               continue
-#           new_d = d+graph[node][neighbor]
-#           if new_d < nodes[neighbor].d:
-#               nodes[neighbor].d = new_d
-#               nodes[neighbor].parent = node
-#               heapq.heappush(queue, (new_d, neighbor))
-#   return nodes
-
-
-# def PackMatch(Graph, source, destination, dDate, cost):
-#     currentDate = date.today()
-#     create vertex set Q
-#
-# # Initialization
-#
-#     for each vertex v in Graph:
-#         dist[v] = INFINITY
-#         prev[v] = UNDEFINED
-#         add v to Q
-#
-#     dist[source] = 0 # Distance from source to source
-#
-#     while Q is not empty:
-#         u = vertex in Q
-#         with min dist[u]
-#         remove u from Q
-#
-#         for each neighbor v of u in range dates:
-#             alt = dist[u] + length(u, v)
-#             if alt < dist[v]:
-#                 dist[v] = alt
-#                 prev[v] = u
-#                 cDate = Weight.date
-#
-#     if dist[destination] > cost:
-#         return null
-#
-#     return dist[], prev[]
 
 @app.route('/')
 def extract_name():
@@ -141,5 +142,4 @@ def extract_name():
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000, debug=True)
-
 
