@@ -8,16 +8,16 @@ from firebase_admin import firestore
 from flask import request, Response
 
 app = flask.Flask(__name__)
-
+cred_obj = firebase_admin.credentials.Certificate(
+        r"C:\Users\Hadar\Desktop\paxi\paxi-2926b-firebase-adminsdk-yqehw-fe79636c2c.json")
+firebase_admin.initialize_app(cred_obj, {
+        'databaseURL': "https://console.firebase.google.com/u/0/project/paxi-2926b/database"})
+db = firestore.client()
 
 def buildGraph():
     print("in build graph")
     currentDate = date.today()
-    cred_obj = firebase_admin.credentials.Certificate(
-        r"C:\Users\Hadar\Desktop\paxi\paxi-2926b-firebase-adminsdk-yqehw-fe79636c2c.json")
-    firebase_admin.initialize_app(cred_obj, {
-        'databaseURL': "https://console.firebase.google.com/u/0/project/paxi-2926b/database"})
-    db = firestore.client()
+
     docsPacks = db.collection('packages').get()
     for doc in docsPacks:
         if doc.get('driver') == "no":
@@ -39,7 +39,7 @@ def buildGraph():
                             graph[r.get('source')][r.get('destination')] = {'futureRouteID': r.get('futureRouteID'),
                                                                         'date': r.get('date'),
                                                                         'cost': r.get('cost')}
-            distances = dijkstra(graph, s)
+            distances = improvedDijkstra(graph, s)
             print("distances: \n")
             print(distances)
             if distances[d][0] != float('inf') and distances[d][0] <= cost:
@@ -101,7 +101,7 @@ def checkMatch(distances, graph, s, d):
     return routes
 
 
-def dijkstra(graph, start):
+def improvedDijkstra(graph, start):
     distances = {}
     for vertex in graph:
         distances[vertex] = [float('inf'), None]
