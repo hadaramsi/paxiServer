@@ -6,7 +6,6 @@ import firebase_admin
 # from firebase_admin import db
 from firebase_admin import firestore
 from flask import request, Response
-from jinja2.nodes import Node
 
 app = flask.Flask(__name__)
 
@@ -21,45 +20,65 @@ def buildGraph():
     db = firestore.client()
     docsPacks = db.collection('packages').get()
     for doc in docsPacks:
-        graph = {}
-        docsDps = db.collection('deliveryPoints').get()
-        for dp in docsDps:
-            graph[dp.get('deliveryPointName')] = {}
-        s = doc.get('source')
-        d = doc.get('destination')
-        dDate = doc.get('date')
-        cost = doc.get('cost')
-        w = doc.get('weight')
-        v = doc.get('volume')
-        docsRoutes = db.collection('routes').get()
-        for r in docsRoutes:
-            if w <= r.get('weight') and v <= r.get('volume') and datetime.strptime(r.get('date'), '%d/%m/%Y').date() > currentDate:
-                if datetime.strptime(r.get('date'), '%d/%m/%Y').date() <= datetime.strptime(dDate, '%d/%m/%Y').date():
-                    if cost >= r.get('cost'):
-                        graph[r.get('source')][r.get('destination')] = {'futureRouteID': r.get('futureRouteID'),
+        if doc.get('driver') == "no":
+            graph = {}
+            docsDps = db.collection('deliveryPoints').get()
+            for dp in docsDps:
+                graph[dp.get('deliveryPointName')] = {}
+            s = doc.get('source')
+            d = doc.get('destination')
+            dDate = doc.get('date')
+            cost = doc.get('cost')
+            w = doc.get('weight')
+            v = doc.get('volume')
+            docsRoutes = db.collection('routes').get()
+            for r in docsRoutes:
+                if w <= r.get('weight') and v <= r.get('volume') and datetime.strptime(r.get('date'), '%d/%m/%Y').date() > currentDate:
+                    if datetime.strptime(r.get('date'), '%d/%m/%Y').date() <= datetime.strptime(dDate, '%d/%m/%Y').date():
+                        if cost >= r.get('cost'):
+                            graph[r.get('source')][r.get('destination')] = {'futureRouteID': r.get('futureRouteID'),
                                                                         'date': r.get('date'),
                                                                         'cost': r.get('cost')}
-            print(graph)
-        distances = dijkstra(graph, s)
-        print("distances is: \n")
-
-        print(distances)
-        if distances[d][0] != float('inf') and distances[d][0] <= cost:
-            routes = checkMatch(distances, graph, s,  d)
-            print("route is: \n")
-            print(routes)
-        #     if routes is not []:
-        #         doc['match'] = True
-        #         doc_driv = db.collection('drivers').document(r['driver'])
-        #         doc['rate'] = doc_driv['rate']
-        #         doc['driver'] = doc_driv['fullName']
-        #         for i in routes:
-        #             doc_ref = db.collection('routes').document(routes[i])
-        #             doc_ref['match'] = True
-        #             doc_ref['packagesList'] += doc['packageID']
-        #             doc_ref['volume'] -= v
-        #             doc_ref['weight'] -= w
-        #         print("Match !!!!!")
+            distances = dijkstra(graph, s)
+            print("distances: \n")
+            print(distances)
+            if distances[d][0] != float('inf') and distances[d][0] <= cost:
+                routes = checkMatch(distances, graph, s,  d)
+                if routes is not []:
+                    doc_driv = db.collection('drivers').document(r.get('driver'))
+                    data = {
+                        'cost': doc.get('cost'),
+                        'date': doc.get('date'),
+                        'destination': doc.get('destination'),
+                        'driver': doc_driv.get().to_dict()['fullName'],
+                        'ifRate': doc.get('ifRate'),
+                        'note': doc.get('note'),
+                        'packageID': doc.get('packageID'),
+                        'pay': doc.get('pay'),
+                        'rate': doc_driv.get().to_dict()['rate'],
+                        'sender': doc.get('sender'),
+                        'source': doc.get('source'),
+                        'volume': doc.get('volume'),
+                        'weight': doc.get('weight')
+                    }
+                    doc_pac = db.collection('packages').document(doc.get('packageID'))
+                    doc_pac.set(data)
+                    for i in routes:
+                        doc_ref = db.collection('routes').document(i)
+                        pacsList = doc_ref.get().to_dict()['packagesList'] + ", " + doc.get('packageID')
+                        roteData = {
+                            'cost': doc_ref.get().to_dict()['cost'],
+                            'date': doc_ref.get().to_dict()['date'],
+                            'destination': doc_ref.get().to_dict()['destination'],
+                            'driver': doc_ref.get().to_dict()['driver'],
+                            'futureRouteID': doc_ref.get().to_dict()['futureRouteID'],
+                            'source': doc_ref.get().to_dict()['source'],
+                            'volume': doc_ref.get().to_dict()['volume']-v,
+                            'weight':  doc_ref.get().to_dict()['weight']-w,
+                            'packagesList': pacsList
+                        }
+                        doc_ref.set(roteData)
+                    print("Match !!!!!")
 
 
 def checkMatch(distances, graph, s, d):
@@ -80,34 +99,6 @@ def checkMatch(distances, graph, s, d):
         else:
             return []
     return routes
-
-
-# def checkMatch(distances, graph, s, d):
-#     print("graph" + str(graph))
-#     routes = []
-#     tempDate = graph[distances[d][1]][d]
-#     print("tempDate" + str(tempDate))
-#     current_vertex = distances[d][1]
-#     print("distances[d] "+ str(distances[d]))
-#     print("distances"+ str(distances))
-#     before = d
-#     while current_vertex is not None:
-#         if current_vertex == s:
-#             routes.append(graph[current_vertex][before]['futureRouteID'])
-#             print("routes: " + str(routes))
-#             return routes
-#         before = distances[current_vertex][1]
-#         # print("graph" + graph)
-#         print("before" + str(before))
-#         print("vertex" + str(current_vertex))
-#         temp = graph[before][current_vertex]
-#         if datetime.strptime(temp['date'], '%d/%m/%Y').date() < datetime.strptime(tempDate['date'], '%d/%m/%Y').date():
-#             routes.insert(tempDate['futureRouteID'])
-#             tempDate = graph[before][current_vertex]['date']
-#             current_vertex = before
-#         else:
-#             return []
-#     return routes
 
 
 def dijkstra(graph, start):
