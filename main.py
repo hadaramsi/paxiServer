@@ -44,13 +44,14 @@ def buildGraph():
             print(distances)
             if distances[d][0] != float('inf') and distances[d][0] <= cost:
                 routes = checkMatch(distances, graph, s,  d)
+                print(routes)
                 if routes is not []:
                     doc_driv = db.collection('drivers').document(r.get('driver'))
                     data = {
                         'cost': doc.get('cost'),
                         'date': doc.get('date'),
                         'destination': doc.get('destination'),
-                        'driver': doc_driv.get().to_dict()['fullName'],
+                        'driver': doc_driv.get().to_dict()['email'],
                         'ifRate': doc.get('ifRate'),
                         'note': doc.get('note'),
                         'packageID': doc.get('packageID'),
@@ -87,17 +88,22 @@ def checkMatch(distances, graph, s, d):
     current_vertex = distances[d][1]
     before = d
     while current_vertex is not None:
-        if current_vertex == s:
-            routes.append(graph[current_vertex][before]['futureRouteID'])
-            return routes
         before = distances[current_vertex][1]
+
+        if current_vertex == s:
+            print(current_vertex + "  ------ current_vertex" )
+            print(str(before) + "  ------ before")
+            # print(graph[current_vertex][before]['futureRouteID'] + "  ------ graph[current_vertex][before]['futureRouteID']")
+            # routes.append(graph[current_vertex][before]['futureRouteID'])
+            return routes
         temp = graph[before][current_vertex]
         if datetime.strptime(temp['date'], '%d/%m/%Y').date() < datetime.strptime(tempDate['date'], '%d/%m/%Y').date():
-            routes.insert(tempDate['futureRouteID'])
+            routes.insert(len(routes), tempDate['futureRouteID'])
             tempDate = graph[before][current_vertex]['date']
             current_vertex = before
         else:
             return []
+    print(routes)
     return routes
 
 
